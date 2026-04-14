@@ -26,7 +26,6 @@ console.log('Weather Radar Card: Script loaded and registering...');
   description: 'A rain radar card using the new tiled images from RainViewer',
 });
 
-// TODO Name your custom element
 @customElement('weather-radar-card')
 export class WeatherRadarCard extends LitElement implements LovelaceCard {
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
@@ -40,21 +39,11 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
   @property({ type: Boolean, reflect: true })
   public isPanel = false;
 
-  // TODO Add any properities that should cause your element to re-render here
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ attribute: false }) private _config!: WeatherRadarCardConfig;
   @property({ attribute: false }) public editMode?: boolean;
 
   public setConfig(config: WeatherRadarCardConfig): void {
-    // TODO Check for required fields and that they are of the proper format
-    /*   if (!config || config.show_error) {
-      throw new Error(localize('common.invalid_configuration'));
-    }
-
-    if (config.test_gui) {
-      getLovelace().setEditMode(true);
-    }*/
-
     if (config.height && config.square_map) {
       console.warn(
         "Weather Radar Card: Both 'height' and 'square_map' are configured. Custom height will take priority.",
@@ -73,6 +62,14 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
       );
     }
 
+    // Validate max_zoom / min_zoom
+    if (config.max_zoom !== undefined && (config.max_zoom < 1 || config.max_zoom > 20)) {
+      console.warn(`Weather Radar Card: 'max_zoom' value ${config.max_zoom} is out of range (1-20). Using default 7.`);
+    }
+    if (config.min_zoom !== undefined && (config.min_zoom < 1 || config.min_zoom > 20)) {
+      console.warn(`Weather Radar Card: 'min_zoom' value ${config.min_zoom} is out of range (1-20). Using default 3.`);
+    }
+
     // Validate coordinate configurations
     this._validateCoordinateConfig('center_latitude', config.center_latitude);
     this._validateCoordinateConfig('center_longitude', config.center_longitude);
@@ -86,38 +83,24 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
     this._config = config;
   }
 
-  // #####
-  // ##### Sets the card size so HA knows how to put in columns
-  // #####
-
   getCardSize(): number {
     return 10;
   }
 
   protected shouldUpdate(changedProps: PropertyValues): boolean {
-    // Don't try to update if we don't have a config yet
     if (!this._config) {
       return false;
     }
-    // Check if config or hass changed (this card doesn't use entity tracking)
     return changedProps.has('_config') || changedProps.has('hass');
   }
 
-  /**
-   * Validates coordinate configuration format
-   * Logs warnings for invalid configs but doesn't throw errors
-   */
   private _validateCoordinateConfig(fieldName: string, value: CoordinateConfig | undefined): void {
     if (value === undefined || value === null) {
-      return; // Optional field
+      return;
     }
-
-    // Number is always valid
     if (typeof value === 'number') {
       return;
     }
-
-    // String should look like an entity ID
     if (typeof value === 'string') {
       if (!value.includes('.')) {
         console.warn(
@@ -126,226 +109,129 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
       }
       return;
     }
-
-    // Object should have required fields
     if (typeof value === 'object') {
       if (!value.entity || typeof value.entity !== 'string') {
-        console.warn(
-          `Weather Radar Card: '${fieldName}' entity config missing required 'entity' field`,
-        );
+        console.warn(`Weather Radar Card: '${fieldName}' entity config missing required 'entity' field`);
       }
       if (value.latitude_attribute && typeof value.latitude_attribute !== 'string') {
-        console.warn(
-          `Weather Radar Card: '${fieldName}' latitude_attribute must be a string`,
-        );
+        console.warn(`Weather Radar Card: '${fieldName}' latitude_attribute must be a string`);
       }
       if (value.longitude_attribute && typeof value.longitude_attribute !== 'string') {
-        console.warn(
-          `Weather Radar Card: '${fieldName}' longitude_attribute must be a string`,
-        );
+        console.warn(`Weather Radar Card: '${fieldName}' longitude_attribute must be a string`);
       }
       return;
     }
-
-    console.warn(
-      `Weather Radar Card: Invalid type for '${fieldName}'. Expected number, entity ID string, or entity config object.`,
-    );
+    console.warn(`Weather Radar Card: Invalid type for '${fieldName}'. Expected number, entity ID string, or entity config object.`);
   }
 
-  /**
-   * Detects if the current device is mobile
-   * Checks Home Assistant Companion app, mobile user agents, and screen width
-   */
   private _isMobileDevice(): boolean {
-    // Check 1: Home Assistant Companion app user agent
     const userAgent = navigator.userAgent.toLowerCase();
     const isHAApp = userAgent.includes('home assistant');
-
-    // Check 2: Common mobile user agents
     const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-
-    // Check 3: Screen width (mobile-sized)
     const isMobileScreen = window.innerWidth <= 768;
-
-    // Device is mobile if: HA app, OR mobile screen size, OR mobile user agent
-    // Screen size is the primary indicator - handles responsive design mode and small windows
     return isHAApp || isMobileScreen || isMobileUA;
   }
 
-  /**
-   * Gets info about the currently logged-in user including their person entity and device tracker
-   * Returns null if user info cannot be determined
-   */
   private _getCurrentUserInfo(): { personEntity: string; deviceTracker?: string } | null {
     const userId = this.hass?.user?.id;
     if (!userId) {
       return null;
     }
-
-    // Search for person entity with matching user_id
     for (const [entityId, state] of Object.entries(this.hass?.states || {})) {
       if (entityId.startsWith('person.') && state.attributes?.user_id === userId) {
-        // Found the person, get their primary device tracker
         let deviceTracker: string | undefined;
         const deviceTrackers = state.attributes?.device_trackers;
-
         if (Array.isArray(deviceTrackers) && deviceTrackers.length > 0) {
           deviceTracker = deviceTrackers[0];
         } else if (typeof deviceTrackers === 'string' && deviceTrackers) {
-          // Could be comma-separated string
           deviceTracker = deviceTrackers.split(',')[0].trim();
         }
-
         return { personEntity: entityId, deviceTracker };
       }
     }
-
     return null;
   }
 
-  /**
-   * Returns appropriate coordinate config based on device type
-   * Mobile overrides take precedence when device is detected as mobile
-   * Auto-detects from current user's device tracker only when no coordinates are configured at all
-   */
   private _getCoordinateConfig(
     baseConfig: CoordinateConfig | undefined,
     mobileConfig: CoordinateConfig | undefined,
     isMobile: boolean,
     userDeviceTracker?: string,
   ): CoordinateConfig | undefined {
-    // If mobile and mobile override exists, use it
     if (isMobile && mobileConfig !== undefined) {
       return mobileConfig;
     }
-    // If mobile with no override AND no base config, try auto-detect from user's device tracker.
-    // Do NOT auto-detect when a base config is explicitly set - static coordinates must be respected.
     if (isMobile && !baseConfig && userDeviceTracker) {
       return userDeviceTracker;
     }
-    // Otherwise use base config (including on mobile when base config is set)
     return baseConfig;
   }
 
-  /**
-   * Extracts coordinate from entity attributes with validation
-   */
   private _getCoordinateFromEntity(
     entityId: string,
     coordType: 'latitude' | 'longitude',
     attributeName: string,
   ): number | null {
-    // Check if entity exists
     const entityState = this.hass?.states[entityId];
     if (!entityState) {
-      console.warn(
-        `Weather Radar Card: Entity '${entityId}' not found for ${coordType}. Using fallback.`,
-      );
+      console.warn(`Weather Radar Card: Entity '${entityId}' not found for ${coordType}. Using fallback.`);
       return null;
     }
-
-    // Extract attribute value
     const value = entityState.attributes[attributeName];
-
     if (value === undefined || value === null) {
-      console.warn(
-        `Weather Radar Card: Entity '${entityId}' has no attribute '${attributeName}' for ${coordType}. Using fallback.`,
-      );
+      console.warn(`Weather Radar Card: Entity '${entityId}' has no attribute '${attributeName}' for ${coordType}. Using fallback.`);
       return null;
     }
-
-    // Validate numeric value
     const numValue = typeof value === 'number' ? value : parseFloat(value);
-
     if (isNaN(numValue)) {
-      console.warn(
-        `Weather Radar Card: Entity '${entityId}' attribute '${attributeName}' is not a valid number ('${value}'). Using fallback.`,
-      );
+      console.warn(`Weather Radar Card: Entity '${entityId}' attribute '${attributeName}' is not a valid number ('${value}'). Using fallback.`);
       return null;
     }
-
-    // Validate coordinate ranges
     if (coordType === 'latitude' && (numValue < -90 || numValue > 90)) {
-      console.warn(
-        `Weather Radar Card: Invalid latitude value ${numValue} from entity '${entityId}'. Must be between -90 and 90. Using fallback.`,
-      );
+      console.warn(`Weather Radar Card: Invalid latitude value ${numValue} from entity '${entityId}'. Must be between -90 and 90. Using fallback.`);
       return null;
     }
-
     if (coordType === 'longitude' && (numValue < -180 || numValue > 180)) {
-      console.warn(
-        `Weather Radar Card: Invalid longitude value ${numValue} from entity '${entityId}'. Must be between -180 and 180. Using fallback.`,
-      );
+      console.warn(`Weather Radar Card: Invalid longitude value ${numValue} from entity '${entityId}'. Must be between -180 and 180. Using fallback.`);
       return null;
     }
-
     return numValue;
   }
 
-  /**
-   * Resolves a coordinate configuration to a numeric value
-   * Supports: numbers, entity IDs as strings, or entity config objects
-   */
   private _resolveCoordinate(
     config: CoordinateConfig | undefined,
     coordType: 'latitude' | 'longitude',
     fallback: number,
   ): number {
-    // Return fallback if no config
     if (config === undefined || config === null) {
       return fallback;
     }
-
-    // Direct numeric value (backwards compatible)
     if (typeof config === 'number') {
       return config;
     }
-
-    // String entity ID (simple format)
     if (typeof config === 'string') {
-      return (
-        this._getCoordinateFromEntity(
-          config,
-          coordType,
-          coordType, // Use coordType as attribute name
-        ) ?? fallback
-      );
+      return this._getCoordinateFromEntity(config, coordType, coordType) ?? fallback;
     }
-
-    // Entity config object (advanced format)
     if (typeof config === 'object' && 'entity' in config) {
       const attrName =
         coordType === 'latitude'
           ? config.latitude_attribute || 'latitude'
           : config.longitude_attribute || 'longitude';
-
       return this._getCoordinateFromEntity(config.entity, coordType, attrName) ?? fallback;
     }
-
     return fallback;
   }
 
-  // Common MDI icon paths (embedded for offline reliability)
   private static readonly MDI_PATHS: Record<string, string> = {
-    account:
-      'M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z',
-    'account-circle':
-      'M12,19.2C9.5,19.2 7.29,17.92 6,16C6.03,14 10,12.9 12,12.9C14,12.9 17.97,14 18,16C16.71,17.92 14.5,19.2 12,19.2M12,5A3,3 0 0,1 15,8A3,3 0 0,1 12,11A3,3 0 0,1 9,8A3,3 0 0,1 12,5M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z',
-    'map-marker':
-      'M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z',
+    account: 'M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z',
+    'account-circle': 'M12,19.2C9.5,19.2 7.29,17.92 6,16C6.03,14 10,12.9 12,12.9C14,12.9 17.97,14 18,16C16.71,17.92 14.5,19.2 12,19.2M12,5A3,3 0 0,1 15,8A3,3 0 0,1 12,11A3,3 0 0,1 9,8A3,3 0 0,1 12,5M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z',
+    'map-marker': 'M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z',
     home: 'M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z',
     car: 'M5,11L6.5,6.5H17.5L19,11M17.5,16A1.5,1.5 0 0,1 16,14.5A1.5,1.5 0 0,1 17.5,13A1.5,1.5 0 0,1 19,14.5A1.5,1.5 0 0,1 17.5,16M6.5,16A1.5,1.5 0 0,1 5,14.5A1.5,1.5 0 0,1 6.5,13A1.5,1.5 0 0,1 8,14.5A1.5,1.5 0 0,1 6.5,16M18.92,6C18.72,5.42 18.16,5 17.5,5H6.5C5.84,5 5.28,5.42 5.08,6L3,12V20A1,1 0 0,0 4,21H5A1,1 0 0,0 6,20V19H18V20A1,1 0 0,0 19,21H20A1,1 0 0,0 21,20V12L18.92,6Z',
-    cellphone:
-      'M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3C19,1.89 18.1,1 17,1Z',
-    'home-circle':
-      'M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M10,17V13H8L12,7L16,13H14V17H10Z',
+    cellphone: 'M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3C19,1.89 18.1,1 17,1Z',
+    'home-circle': 'M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M10,17V13H8L12,7L16,13H14V17H10Z',
   };
 
-  /**
-   * Finds the person entity that owns a given device tracker.
-   * Searches all person entities for one whose device_trackers attribute includes the tracker ID.
-   * Returns undefined if no matching person entity is found.
-   */
   private _findPersonEntityForDeviceTracker(deviceTrackerId: string): string | undefined {
     for (const [entityId, state] of Object.entries(this.hass?.states || {})) {
       if (!entityId.startsWith('person.')) continue;
@@ -357,11 +243,6 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
     return undefined;
   }
 
-  /**
-   * Resolves an entity ID to a person entity suitable for entity_picture lookup.
-   * If the entity is a device_tracker, finds its associated person entity.
-   * Otherwise returns the entity ID unchanged.
-   */
   private _resolveToPersonEntity(entityId: string): string {
     if (entityId.startsWith('device_tracker.')) {
       return this._findPersonEntityForDeviceTracker(entityId) ?? entityId;
@@ -369,64 +250,41 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
     return entityId;
   }
 
-  /**
-   * Gets the marker icon configuration based on device type.
-   * Handles mobile overrides and auto-detection from configured coordinates.
-   * Mobile defaults to entity_picture when no icon type is configured.
-   */
   private _getMarkerIconConfig(isMobile: boolean, userInfo: { personEntity: string; deviceTracker?: string } | null): { type: string; entity?: string } {
     let iconType: string;
     if (isMobile) {
-      // Mobile defaults to entity_picture when not explicitly configured
       iconType = this._config.mobile_marker_icon ?? 'entity_picture';
     } else {
       iconType = this._config.marker_icon || 'default';
     }
-
-    // Use explicit icon entity if configured
     let iconEntity: string | undefined;
     if (isMobile) {
       iconEntity = this._config.mobile_marker_icon_entity;
     } else {
       iconEntity = this._config.marker_icon_entity;
     }
-
-    // Auto-detect entity for entity_picture mode when no explicit entity is configured.
-    // Priority: marker coordinate entity -> center coordinate entity -> logged-in user's person entity.
-    // Device tracker entities are resolved to their associated person entity (which carries entity_picture).
     if (iconType === 'entity_picture' && !iconEntity) {
-      // Priority 1: entity referenced by marker_latitude (marker position entity)
       const markerLatConfig = isMobile
         ? this._config.mobile_marker_latitude ?? this._config.marker_latitude
         : this._config.marker_latitude;
-
       if (typeof markerLatConfig === 'string') {
         iconEntity = this._resolveToPersonEntity(markerLatConfig);
       }
-
-      // Priority 2: entity referenced by center_latitude (marker defaults to center when marker_latitude not set)
       if (!iconEntity) {
         const centerLatConfig = isMobile
           ? this._config.mobile_center_latitude ?? this._config.center_latitude
           : this._config.center_latitude;
-
         if (typeof centerLatConfig === 'string') {
           iconEntity = this._resolveToPersonEntity(centerLatConfig);
         }
       }
-
-      // Priority 3: fall back to the logged-in user's person entity
       if (!iconEntity && userInfo?.personEntity) {
         iconEntity = userInfo.personEntity;
       }
     }
-
     return { type: iconType, entity: iconEntity };
   }
 
-  /**
-   * Resolves entity_picture URL from an entity
-   */
   private _resolveEntityPicture(entityId: string | undefined): string | null {
     if (!entityId) return null;
     const entity = this.hass?.states[entityId];
@@ -434,88 +292,41 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
     return entity.attributes.entity_picture;
   }
 
-  /**
-   * Generates the JavaScript code for creating the Leaflet marker icon
-   */
   private _generateMarkerIconCode(isMobile: boolean, userInfo: { personEntity: string; deviceTracker?: string } | null): string {
     const iconConfig = this._getMarkerIconConfig(isMobile, userInfo);
     const mapStyle = (this._config.map_style || 'light').toLowerCase();
-
-    // Default icon (existing behavior)
     if (!iconConfig.type || iconConfig.type === 'default') {
-      return `var myIcon = L.icon({
-        iconUrl: '/local/community/weather-radar-card/'+svg_icon,
-        iconSize: [16, 16],
-      });`;
+      return `var myIcon = L.icon({ iconUrl: '/local/community/weather-radar-card/'+svg_icon, iconSize: [16, 16] });`;
     }
-
-    // Entity picture icon (circular avatar)
     if (iconConfig.type === 'entity_picture') {
       const pictureUrl = this._resolveEntityPicture(iconConfig.entity);
       if (!pictureUrl) {
-        console.warn(
-          `Weather Radar Card: Could not resolve entity_picture for '${iconConfig.entity}'. Using default icon.`,
-        );
-        return `var myIcon = L.icon({
-          iconUrl: '/local/community/weather-radar-card/'+svg_icon,
-          iconSize: [16, 16],
-        });`;
+        console.warn(`Weather Radar Card: Could not resolve entity_picture for '${iconConfig.entity}'. Using default icon.`);
+        return `var myIcon = L.icon({ iconUrl: '/local/community/weather-radar-card/'+svg_icon, iconSize: [16, 16] });`;
       }
-      // Escape quotes in URL for safety
       const safeUrl = pictureUrl.replace(/'/g, "\\'").replace(/"/g, '\\"');
-      return `var myIcon = L.icon({
-        iconUrl: '${safeUrl}',
-        iconSize: [32, 32],
-        className: 'marker-entity-picture'
-      });`;
+      return `var myIcon = L.icon({ iconUrl: '${safeUrl}', iconSize: [32, 32], className: 'marker-entity-picture' });`;
     }
-
-    // MDI icon
     if (iconConfig.type.startsWith('mdi:')) {
-      const iconName = iconConfig.type.substring(4); // Remove "mdi:" prefix
+      const iconName = iconConfig.type.substring(4);
       const mdiPath = WeatherRadarCard.MDI_PATHS[iconName];
-
       if (!mdiPath) {
-        console.warn(
-          `Weather Radar Card: MDI icon '${iconName}' not found in embedded icons. Using default. ` +
-            `Available icons: ${Object.keys(WeatherRadarCard.MDI_PATHS).join(', ')}`,
-        );
-        return `var myIcon = L.icon({
-          iconUrl: '/local/community/weather-radar-card/'+svg_icon,
-          iconSize: [16, 16],
-        });`;
+        console.warn(`Weather Radar Card: MDI icon '${iconName}' not found in embedded icons. Using default. Available icons: ${Object.keys(WeatherRadarCard.MDI_PATHS).join(', ')}`);
+        return `var myIcon = L.icon({ iconUrl: '/local/community/weather-radar-card/'+svg_icon, iconSize: [16, 16] });`;
       }
-
-      // Auto-select color based on map style (light icons on dark maps, dark icons on light maps)
       const mdiColor = mapStyle === 'dark' || mapStyle === 'satellite' ? '#EEEEEE' : '#333333';
-
-      return `var myIcon = L.divIcon({
-        html: '<svg viewBox="0 0 24 24" width="24" height="24"><path fill="${mdiColor}" d="${mdiPath}"/></svg>',
-        iconSize: [24, 24],
-        className: 'marker-mdi-icon'
-      });`;
+      return `var myIcon = L.divIcon({ html: '<svg viewBox="0 0 24 24" width="24" height="24"><path fill="${mdiColor}" d="${mdiPath}"/></svg>', iconSize: [24, 24], className: 'marker-mdi-icon' });`;
     }
-
-    // Unknown icon type, fall back to default
     console.warn(`Weather Radar Card: Unknown marker_icon type '${iconConfig.type}'. Using default.`);
-    return `var myIcon = L.icon({
-      iconUrl: '/local/community/weather-radar-card/'+svg_icon,
-      iconSize: [16, 16],
-    });`;
+    return `var myIcon = L.icon({ iconUrl: '/local/community/weather-radar-card/'+svg_icon, iconSize: [16, 16] });`;
   }
 
-  /**
-   * Resolves a lat/lon pair from configs with intelligent fallback handling
-   * Special case: both are same entity string - extract both coordinates atomically
-   */
   private _resolveCoordinatePair(
     latConfig: CoordinateConfig | undefined,
     lonConfig: CoordinateConfig | undefined,
     fallbackLat: number,
     fallbackLon: number,
   ): { lat: number; lon: number } {
-    // Special case: both are string entity IDs and same entity
-    // Extract both coordinates from same entity for atomic resolution
     if (typeof latConfig === 'string' && typeof lonConfig === 'string' && latConfig === lonConfig) {
       const entityState = this.hass?.states[latConfig];
       if (entityState?.attributes?.latitude && entityState?.attributes?.longitude) {
@@ -526,8 +337,6 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
         }
       }
     }
-
-    // Standard resolution: resolve each coordinate independently
     return {
       lat: this._resolveCoordinate(latConfig, 'latitude', fallbackLat),
       lon: this._resolveCoordinate(lonConfig, 'longitude', fallbackLon),
@@ -535,10 +344,17 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
   }
 
   protected render(): TemplateResult | void {
-    // TODO Check for stateObj or other necessary things and render a warning if missing
     if (this._config.show_warning) {
       return this.showWarning(localize('common.show_warning'));
     }
+
+    // Resolve max/min zoom from config with safe defaults
+    const maxZoomValue = (this._config.max_zoom !== undefined && this._config.max_zoom >= 1 && this._config.max_zoom <= 20)
+      ? this._config.max_zoom
+      : 7;
+    const minZoomValue = (this._config.min_zoom !== undefined && this._config.min_zoom >= 1 && this._config.min_zoom <= 20)
+      ? this._config.min_zoom
+      : 3;
 
     const doc = `
       <!DOCTYPE html>
@@ -552,42 +368,15 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
           <script src="/local/community/weather-radar-card/leaflet.js"></script>
           <script src="/local/community/weather-radar-card/leaflet.toolbar.min.js"></script>
           <style>
-            body {
-              margin: 0;
-              padding: 0;
-            }
-            .text-container {
-              font: 12px/1.5 'Helvetica Neue', Arial, Helvetica, sans-serif;
-              margin: 0px 2.5px 0px 10px;
-            }
-            .text-container-small {
-              font: 10px/1.5 'Helvetica Neue', Arial, Helvetica, sans-serif;
-              margin: 0px 10px 0px 2.5px;
-            }
-            .light-links a {
-              color: blue;
-            }
-            .dark-links a {
-              color: steelblue;
-            }
-            #timestamp {
-              font: 14px/1.5 'Helvetica Neue', Arial, Helvetica, sans-serif;
-              margin: 0px 0px;
-              padding-top: 5px;
-            }
-            #color-bar {
-              margin: 0px 0px;
-            }
-            /* Custom marker icon styles */
-            .marker-entity-picture {
-              border-radius: 50%;
-              border: 2px solid white;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            }
-            .marker-mdi-icon {
-              background: transparent;
-              border: none;
-            }
+            body { margin: 0; padding: 0; }
+            .text-container { font: 12px/1.5 'Helvetica Neue', Arial, Helvetica, sans-serif; margin: 0px 2.5px 0px 10px; }
+            .text-container-small { font: 10px/1.5 'Helvetica Neue', Arial, Helvetica, sans-serif; margin: 0px 10px 0px 2.5px; }
+            .light-links a { color: blue; }
+            .dark-links a { color: steelblue; }
+            #timestamp { font: 14px/1.5 'Helvetica Neue', Arial, Helvetica, sans-serif; margin: 0px 0px; padding-top: 5px; }
+            #color-bar { margin: 0px 0px; }
+            .marker-entity-picture { border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+            .marker-mdi-icon { background: transparent; border: none; }
           </style>
         </head>
         <body onresize="resizeWindow()">
@@ -604,73 +393,32 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
                 <p id="timestamp"></p>
               </div>
               <div id="attribution" class="text-container-small" style="height: 32px; float:right;">
-                <span class="Map__Attribution-LjffR DKiFh" id="attribution"
-                  ></span
-                >
+                <span class="Map__Attribution-LjffR DKiFh" id="attribution"></span>
               </div>
             </div>
             <script>
               const tileSize = 256;
-              const maxZoom = 7;
-              const minZoom = 3;
+              const maxZoom = ${JSON.stringify(maxZoomValue)};
+              const minZoom = ${JSON.stringify(minZoomValue)};
               var radarOpacity = 1.0;
-              var zoomLevel = ${JSON.stringify(this._config.zoom_level !== undefined ? this._config.zoom_level : 7)};
+              var zoomLevel = ${JSON.stringify(this._config.zoom_level !== undefined ? this._config.zoom_level : 5)};
               ${
                 (() => {
                   try {
-                    // Detect device type and get current user info for auto-detection
                     const isMobile = this._isMobileDevice();
                     const userInfo = this._getCurrentUserInfo();
-
-                    // Get coordinate configs - auto-detect from user's device tracker on mobile if no mobile config
-                    const centerLatConfig = this._getCoordinateConfig(
-                      this._config.center_latitude,
-                      this._config.mobile_center_latitude,
-                      isMobile,
-                      userInfo?.deviceTracker,
-                    );
-                    const centerLonConfig = this._getCoordinateConfig(
-                      this._config.center_longitude,
-                      this._config.mobile_center_longitude,
-                      isMobile,
-                      userInfo?.deviceTracker,
-                    );
-                    const markerLatConfig = this._getCoordinateConfig(
-                      this._config.marker_latitude,
-                      this._config.mobile_marker_latitude,
-                      isMobile,
-                      userInfo?.deviceTracker,
-                    );
-                    const markerLonConfig = this._getCoordinateConfig(
-                      this._config.marker_longitude,
-                      this._config.mobile_marker_longitude,
-                      isMobile,
-                      userInfo?.deviceTracker,
-                    );
-
-                    // Resolve coordinates at render time
-                    const centerCoords = this._resolveCoordinatePair(
-                      centerLatConfig,
-                      centerLonConfig,
-                      this.hass?.config?.latitude ?? 0,
-                      this.hass?.config?.longitude ?? 0,
-                    );
-
-                    const markerCoords = this._resolveCoordinatePair(
-                      markerLatConfig,
-                      markerLonConfig,
-                      centerCoords.lat,
-                      centerCoords.lon,
-                    );
-
-                    // Return variables for injection into iframe
+                    const centerLatConfig = this._getCoordinateConfig(this._config.center_latitude, this._config.mobile_center_latitude, isMobile, userInfo?.deviceTracker);
+                    const centerLonConfig = this._getCoordinateConfig(this._config.center_longitude, this._config.mobile_center_longitude, isMobile, userInfo?.deviceTracker);
+                    const markerLatConfig = this._getCoordinateConfig(this._config.marker_latitude, this._config.mobile_marker_latitude, isMobile, userInfo?.deviceTracker);
+                    const markerLonConfig = this._getCoordinateConfig(this._config.marker_longitude, this._config.mobile_marker_longitude, isMobile, userInfo?.deviceTracker);
+                    const centerCoords = this._resolveCoordinatePair(centerLatConfig, centerLonConfig, this.hass?.config?.latitude ?? 0, this.hass?.config?.longitude ?? 0);
+                    const markerCoords = this._resolveCoordinatePair(markerLatConfig, markerLonConfig, centerCoords.lat, centerCoords.lon);
                     return `var centerLat = ${JSON.stringify(centerCoords.lat)};
               var centerLon = ${JSON.stringify(centerCoords.lon)};
               var markerLat = ${JSON.stringify(markerCoords.lat)};
               var markerLon = ${JSON.stringify(markerCoords.lon)};`;
                   } catch (error) {
                     console.error('Weather Radar Card: Error resolving coordinates:', error);
-                    // Fallback to default coordinates
                     const fallbackLat = this.hass?.config?.latitude ?? 0;
                     const fallbackLon = this.hass?.config?.longitude ?? 0;
                     return `var centerLat = ${JSON.stringify(fallbackLat)};
@@ -682,7 +430,7 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
               }
               var timeout = ${JSON.stringify(this._config.frame_delay !== undefined ? this._config.frame_delay : 500)};
               var restartDelay = ${JSON.stringify(this._config.restart_delay !== undefined ? this._config.restart_delay : 1000)};
-              var frameCount = ${JSON.stringify(this._config.frame_count != undefined ? this._config.frame_count : 5)}; 
+              var frameCount = ${JSON.stringify(this._config.frame_count != undefined ? this._config.frame_count : 5)};
               var tileURL = 'https://tilecache.rainviewer.com{path}/{tileSize}/{z}/{x}/{y}/2/1_0.png';
               var radarAPIURL = 'https://api.rainviewer.com/public/weather-maps.json';
               var radarPaths = [];
@@ -701,7 +449,7 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
                   var label_url = 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png';
                   var label_style = 'dark_only_labels';
                   var svg_icon = 'home-circle-light.svg';
-                  var attribution = '<a href="https://leafletjs.com" title="A JS library for interactive maps" target="_blank">Leaflet</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com/attribution" target="_blank">CARTO</a><br>Radar data by <a href="https://rainviewer.com" target="_blank">RainViewer</a>';
+                  var attribution = '<a href="https://leafletjs.com" target="_blank">Leaflet</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com/attribution" target="_blank">CARTO</a><br>Radar data by <a href="https://rainviewer.com" target="_blank">RainViewer</a>';
                   break;
                 case "voyager":
                   var basemap_url = 'https://{s}.basemaps.cartocdn.com/{style}/{z}/{x}/{y}.png';
@@ -709,7 +457,7 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
                   var label_url = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png';
                   var label_style = 'rastertiles/voyager_only_labels';
                   var svg_icon = 'home-circle-dark.svg';
-                  var attribution = '<a href="https://leafletjs.com" title="A JS library for interactive maps" target="_blank">Leaflet</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com/attribution" target="_blank">CARTO</a><br>Radar data by <a href="https://rainviewer.com" target="_blank">RainViewer</a>';
+                  var attribution = '<a href="https://leafletjs.com" target="_blank">Leaflet</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com/attribution" target="_blank">CARTO</a><br>Radar data by <a href="https://rainviewer.com" target="_blank">RainViewer</a>';
                   break;
                 case 'satellite':
                   var basemap_url = 'https://server.arcgisonline.com/ArcGIS/rest/services/{style}/MapServer/tile/{z}/{y}/{x}';
@@ -717,7 +465,7 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
                   var label_url = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png';
                   var label_style = 'proton_labels_std';
                   var svg_icon = 'home-circle-dark.svg';
-                  var attribution = '<a href="https://leafletjs.com" title="A JS library for interactive maps" target="_blank">Leaflet</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="http://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9" target="_blank">ESRI</a><br>Radar data by <a href="https://rainviewer.com" target="_blank">RainViewer</a>';
+                  var attribution = '<a href="https://leafletjs.com" target="_blank">Leaflet</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="http://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9" target="_blank">ESRI</a><br>Radar data by <a href="https://rainviewer.com" target="_blank">RainViewer</a>';
                   break;
                 case "light":
                 default:
@@ -726,7 +474,7 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
                   var label_url = 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png';
                   var label_style = 'light_only_labels';
                   var svg_icon = 'home-circle-dark.svg';
-                  var attribution = '<a href="https://leafletjs.com" title="A JS library for interactive maps" target="_blank">Leaflet</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com/attribution" target="_blank">CARTO</a><br>Radar data by <a href="https://rainviewer.com" target="_blank">RainViewer</a>';
+                  var attribution = '<a href="https://leafletjs.com" target="_blank">Leaflet</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com/attribution" target="_blank">CARTO</a><br>Radar data by <a href="https://rainviewer.com" target="_blank">RainViewer</a>';
               }
 
               var idx = 0;
@@ -735,14 +483,8 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
               var radarMap = L.map('mapid', {
                 zoomControl: ${this._config.show_zoom === true && this._config.static_map !== true ? 'true' : 'false'},
                 ${this._config.static_map === true
-        ? 'scrollWheelZoom: false, \
-                doubleClickZoom: false, \
-                boxZoom: false, \
-                dragging: false, \
-                keyboard: false, \
-                touchZoom: false,'
-        : 'wheelPxPerZoomLevel: 120,'
-      }
+        ? 'scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, dragging: false, keyboard: false, touchZoom: false,'
+        : 'wheelPxPerZoomLevel: 120,'}
                 attributionControl: false,
                 minZoom: minZoom,
                 maxZoom: maxZoom,
@@ -761,74 +503,37 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
 
               if (${this._config.show_recenter === true && this._config.static_map !== true}) {
                 var recenterAction = L.Toolbar2.Action.extend({
-                  options: {
-                      toolbarIcon: {
-                          html: '<img src="/local/community/weather-radar-card/recenter.png" width="24" height="24">',
-                          tooltip: 'Re-center'
-                      }
-                  },
-
-                  addHooks: function () {
-                    radarMap.setView([centerLat, centerLon], zoomLevel);
-                  }
+                  options: { toolbarIcon: { html: '<img src="/local/community/weather-radar-card/recenter.png" width="24" height="24">', tooltip: 'Re-center' } },
+                  addHooks: function () { radarMap.setView([centerLat, centerLon], zoomLevel); }
                 });
                 t2actions.push(recenterAction);
               }
 
               if (${this._config.show_playback === true}) {
                 var playAction = L.Toolbar2.Action.extend({
-                  options: {
-                      toolbarIcon: {
-                          html: '<img id="playButton" src="/local/community/weather-radar-card/pause.png" width="24" height="24">',
-                          tooltip: 'Pause'
-                      }
-                  },
-
+                  options: { toolbarIcon: { html: '<img id="playButton" src="/local/community/weather-radar-card/pause.png" width="24" height="24">', tooltip: 'Pause' } },
                   addHooks: function () {
                     run = !run;
-                    if (run) {
-                      document.getElementById("playButton").src = "/local/community/weather-radar-card/pause.png"
-                    } else {
-                      document.getElementById("playButton").src = "/local/community/weather-radar-card/play.png"
-                    }
+                    document.getElementById("playButton").src = run
+                      ? "/local/community/weather-radar-card/pause.png"
+                      : "/local/community/weather-radar-card/play.png";
                   }
                 });
                 t2actions.push(playAction);
-
                 var skipbackAction = L.Toolbar2.Action.extend({
-                  options: {
-                      toolbarIcon: {
-                          html: '<img src="/local/community/weather-radar-card/skip-back.png" width="24" height="24">',
-                          tooltip: 'Previous Frame'
-                      }
-                  },
-
-                  addHooks: function () {
-                    skipBack();
-                  }
+                  options: { toolbarIcon: { html: '<img src="/local/community/weather-radar-card/skip-back.png" width="24" height="24">', tooltip: 'Previous Frame' } },
+                  addHooks: function () { skipBack(); }
                 });
                 t2actions.push(skipbackAction);
-
                 var skipnextAction = L.Toolbar2.Action.extend({
-                  options: {
-                      toolbarIcon: {
-                          html: '<img src="/local/community/weather-radar-card/skip-next.png" width="24" height="24">',
-                          tooltip: 'Next Frame'
-                      }
-                  },
-
-                  addHooks: function () {
-                    skipNext();
-                  }
+                  options: { toolbarIcon: { html: '<img src="/local/community/weather-radar-card/skip-next.png" width="24" height="24">', tooltip: 'Next Frame' } },
+                  addHooks: function () { skipNext(); }
                 });
                 t2actions.push(skipnextAction);
               }
 
               if (t2actions.length > 0) {
-                new L.Toolbar2.Control({
-                  position: 'bottomright',
-                  actions: t2actions
-                }).addTo(radarMap);
+                new L.Toolbar2.Control({ position: 'bottomright', actions: t2actions }).addTo(radarMap);
               }
 
               if (${this._config.show_scale === true}) {
@@ -838,7 +543,6 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
                   imperial: ${(this.hass?.config?.unit_system?.length ?? 'km') === 'mi'},
                   maxWidth: 100,
                 }).addTo(radarMap);
-
                 if ((map_style === "dark") || (map_style == "satellite")) {
                   var scaleDiv = this.document.getElementsByClassName("leaflet-control-scale-line")[0];
                   scaleDiv.style.color = "#BBB";
@@ -855,16 +559,7 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
                 this.document.getElementById("bottom-container").className = "dark-links";
               }
 
-              L.tileLayer(
-                basemap_url,
-                {
-                  style: basemap_style,
-                  subdomains: 'abcd',
-                  detectRetina: false,
-                  tileSize: tileSize,
-                  zoomOffset: 0,
-                },
-              ).addTo(radarMap);
+              L.tileLayer(basemap_url, { style: basemap_style, subdomains: 'abcd', detectRetina: false, tileSize: tileSize, zoomOffset: 0 }).addTo(radarMap);
 
               async function fetchRadarPaths() {
                 var response = await fetch(radarAPIURL);
@@ -876,268 +571,143 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
                 var pastFrames = await fetchRadarPaths();
                 radarPaths = pastFrames.slice(-frameCount);
                 frameCount = radarPaths.length;
-
                 for (i = 0; i < frameCount; i++) {
-                  radarImage[i] = L.tileLayer(
-                    tileURL,
-                    {
-                      path: radarPaths[i].path,
-                      detectRetina: false,
-                      tileSize: tileSize,
-                      zoomOffset: 0,
-                      opacity: 0,
-                      frame: i,
-                    },
-                  );
+                  radarImage[i] = L.tileLayer(tileURL, { path: radarPaths[i].path, detectRetina: false, tileSize: tileSize, zoomOffset: 0, opacity: 0, frame: i });
                   radarTime[i] = getRadarTimeString(radarPaths[i].time * 1000);
                 }
-
                 for (i = 0; i < (frameCount - 1); i++) {
-                  radarImage[i].on('load', function(e) {
-                    radarImage[e.target.options.frame + 1].addTo(radarMap);
-                  });
+                  radarImage[i].on('load', function(e) { radarImage[e.target.options.frame + 1].addTo(radarMap); });
                 }
-
                 radarImage[0].addTo(radarMap);
-
                 radarImage[idx].setOpacity(radarOpacity);
                 document.getElementById('timestamp').innerHTML = radarTime[idx];
-
                 barSize = document.getElementById("div-progress-bar").offsetWidth / frameCount;
                 document.getElementById("progress-bar").style.width = barSize + "px";
-
                 radarReady = true;
-                workerTimeout(function() {
-                  nextFrame();
-                }, timeout, "frame");
+                workerTimeout(function() { nextFrame(); }, timeout, "frame");
                 setUpdateTimeout();
               }
 
               var radarReady = false;
               initRadar();
 
-              townLayer = L.tileLayer(
-                label_url,
-                {
-                  subdomains: 'abcd',
-                  detectRetina: false,
-                  tileSize: labelSize,
-                  zoomOffset: labelZoom,
-                },
-              ).addTo(radarMap);
+              townLayer = L.tileLayer(label_url, { subdomains: 'abcd', detectRetina: false, tileSize: labelSize, zoomOffset: labelZoom }).addTo(radarMap);
               townLayer.setZIndex(2);
 
-              ${
-                this._config.show_marker === true
-                  ? (() => {
-                      const isMobile = this._isMobileDevice();
-                      const userInfo = this._getCurrentUserInfo();
-                      const iconCode = this._generateMarkerIconCode(isMobile, userInfo);
-                      return `${iconCode}
-                     L.marker([markerLat, markerLon], { icon: myIcon, interactive: false }).addTo(radarMap);`;
-                    })()
-                  : ''
-              }
+              ${this._config.show_marker === true
+                ? (() => {
+                    const isMobile = this._isMobileDevice();
+                    const userInfo = this._getCurrentUserInfo();
+                    const iconCode = this._generateMarkerIconCode(isMobile, userInfo);
+                    return `${iconCode}\nL.marker([markerLat, markerLon], { icon: myIcon, interactive: false }).addTo(radarMap);`;
+                  })()
+                : ''}
 
               ${this._config.show_range === true
-        ? (this.hass?.config?.unit_system?.length ?? 'km') === 'km' ?
-          'L.circle([markerLat, markerLon], { radius: 50000, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap); \
-          L.circle([markerLat, markerLon], { radius: 100000, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap); \
-          L.circle([markerLat, markerLon], { radius: 200000, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap);':
-          'L.circle([markerLat, markerLon], { radius: 48280, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap); \
-          L.circle([markerLat, markerLon], { radius: 96561, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap); \
-          L.circle([markerLat, markerLon], { radius: 193121, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap);'
-        : ''
-      }
+                ? (this.hass?.config?.unit_system?.length ?? 'km') === 'km'
+                  ? 'L.circle([markerLat, markerLon], { radius: 50000, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap); L.circle([markerLat, markerLon], { radius: 100000, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap); L.circle([markerLat, markerLon], { radius: 200000, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap);'
+                  : 'L.circle([markerLat, markerLon], { radius: 48280, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap); L.circle([markerLat, markerLon], { radius: 96561, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap); L.circle([markerLat, markerLon], { radius: 193121, weight: 1, fill: false, opacity: 0.3, interactive: false }).addTo(radarMap);'
+                : ''}
 
-        // Use a Web Worker for timing to avoid Chromium iframe timer throttling
-        var workerBlob = new Blob([
-          'var timers = {};' +
-          'var nextId = 1;' +
-          'self.onmessage = function(e) {' +
-          '  if (e.data.cmd === "set") {' +
-          '    var id = nextId++;' +
-          '    timers[id] = setTimeout(function() { self.postMessage({id: id, tag: e.data.tag}); delete timers[id]; }, e.data.ms);' +
-          '    self.postMessage({id: id, tag: "ack"});' +
-          '  } else if (e.data.cmd === "clear") {' +
-          '    clearTimeout(timers[e.data.id]);' +
-          '    delete timers[e.data.id];' +
-          '  }' +
-          '};'
-        ], { type: 'application/javascript' });
-        var timerWorker = new Worker(URL.createObjectURL(workerBlob));
-        var workerCallbacks = {};
-        timerWorker.onmessage = function(e) {
-          if (e.data.tag && e.data.tag !== "ack" && workerCallbacks[e.data.tag]) {
-            workerCallbacks[e.data.tag]();
-          }
-        };
-        function workerTimeout(callback, ms, tag) {
-          workerCallbacks[tag] = callback;
-          timerWorker.postMessage({ cmd: "set", ms: ms, tag: tag });
-        }
+              var workerBlob = new Blob([
+                'var timers = {};' +
+                'var nextId = 1;' +
+                'self.onmessage = function(e) {' +
+                '  if (e.data.cmd === "set") {' +
+                '    var id = nextId++;' +
+                '    timers[id] = setTimeout(function() { self.postMessage({id: id, tag: e.data.tag}); delete timers[id]; }, e.data.ms);' +
+                '    self.postMessage({id: id, tag: "ack"});' +
+                '  } else if (e.data.cmd === "clear") {' +
+                '    clearTimeout(timers[e.data.id]);' +
+                '    delete timers[e.data.id];' +
+                '  }' +
+                '};'
+              ], { type: 'application/javascript' });
+              var timerWorker = new Worker(URL.createObjectURL(workerBlob));
+              var workerCallbacks = {};
+              timerWorker.onmessage = function(e) {
+                if (e.data.tag && e.data.tag !== "ack" && workerCallbacks[e.data.tag]) {
+                  workerCallbacks[e.data.tag]();
+                }
+              };
+              function workerTimeout(callback, ms, tag) {
+                workerCallbacks[tag] = callback;
+                timerWorker.postMessage({ cmd: "set", ms: ms, tag: tag });
+              }
 
+              function setUpdateTimeout() { workerTimeout(triggerRadarUpdate, framePeriod + frameLag, "update"); }
+              function triggerRadarUpdate() { doRadarUpdate = true; }
 
-        function setUpdateTimeout() {
-          workerTimeout(triggerRadarUpdate, framePeriod + frameLag, "update");
-        }
+              async function updateRadar() {
+                var pastFrames = await fetchRadarPaths();
+                var latestFrame = pastFrames[pastFrames.length - 1];
+                newLayer = L.tileLayer(tileURL, { path: latestFrame.path, maxZoom: maxZoom, tileSize: tileSize, zoomOffset: 0, opacity: 0 });
+                newLayer.addTo(radarMap);
+                newTime = getRadarTimeString(latestFrame.time * 1000);
+                radarImage[0].remove();
+                for (i = 0; i < frameCount - 1; i++) { radarImage[i] = radarImage[i + 1]; radarTime[i] = radarTime[i + 1]; }
+                radarImage[frameCount - 1] = newLayer;
+                radarTime[frameCount - 1] = newTime;
+                idx = 0;
+                doRadarUpdate = false;
+                setUpdateTimeout();
+              }
 
-        function triggerRadarUpdate() {
-          doRadarUpdate = true;
-        }
+              function getRadarTimeString(date) {
+                x = new Date(date);
+                return weekday[x.getDay()] + ' ' + month[x.getMonth()] + ' ' + x.getDate().toString().padStart(2, '0') + ' ' + x.getHours().toString().padStart(2, '0') + ':' + x.getMinutes().toString().padStart(2, '0');
+              }
 
-        async function updateRadar() {
-          var pastFrames = await fetchRadarPaths();
-          var latestFrame = pastFrames[pastFrames.length - 1];
+              function nextFrame() {
+                if (run && radarReady) {
+                  try { nextImage(); } catch(e) { console.warn('Weather Radar Card: frame error', e); }
+                }
+                workerTimeout(function() { nextFrame(); }, (idx == frameCount) ? restartDelay : timeout, "frame");
+              }
 
-          newLayer = L.tileLayer(tileURL, {
-            path: latestFrame.path,
-            maxZoom: maxZoom,
-            tileSize: tileSize,
-            zoomOffset: 0,
-            opacity: 0,
-          });
-          newLayer.addTo(radarMap);
-          newTime = getRadarTimeString(latestFrame.time * 1000);
+              function skipNext() { if (idx == frameCount-1) { idx += 1; } nextImage(); }
 
-          radarImage[0].remove();
-          for (i = 0; i < frameCount - 1; i++) {
-            radarImage[i] = radarImage[i + 1];
-            radarTime[i] = radarTime[i + 1];
-          }
-          radarImage[frameCount - 1] = newLayer;
-          radarTime[frameCount - 1] = newTime;
-          idx = 0;
-          doRadarUpdate = false;
+              function skipBack() {
+                if (idx == frameCount) { radarImage[frameCount - 1].setOpacity(0); idx -= 1; }
+                else if (idx < frameCount) { radarImage[idx].setOpacity(0); }
+                idx -= 1;
+                if (doRadarUpdate && idx == 1) { updateRadar(); }
+                if (idx < 0) { idx = frameCount-1; }
+                document.getElementById("progress-bar").style.width = (idx+1)*barSize+"px";
+                document.getElementById('timestamp').innerHTML = radarTime[idx];
+                radarImage[idx].setOpacity(radarOpacity);
+              }
 
-          setUpdateTimeout();
-        }
+              function nextImage() {
+                if (idx == frameCount) { radarImage[frameCount - 1].setOpacity(0); }
+                else if (idx < frameCount - 1) { radarImage[idx].setOpacity(0); }
+                idx += 1;
+                if (doRadarUpdate && idx == 1) { updateRadar(); }
+                if (idx == frameCount + 1) { idx = 0; }
+                if (idx != frameCount + 1) { document.getElementById("progress-bar").style.width = (idx+1)*barSize+"px"; }
+                if (idx < frameCount) { document.getElementById('timestamp').innerHTML = radarTime[idx]; radarImage[idx].setOpacity(radarOpacity); }
+              }
 
-        function getRadarTime(date) {
-          x = new Date(date);
-          return (
-            x.getUTCFullYear().toString() +
-            (x.getUTCMonth() + 1).toString().padStart(2, '0') +
-            x
-              .getUTCDate()
-              .toString()
-              .padStart(2, '0') +
-            x
-              .getUTCHours()
-              .toString()
-              .padStart(2, '0') +
-            x
-              .getUTCMinutes()
-              .toString()
-              .padStart(2, '0')
-          );
-        }
-
-        function getRadarTimeString(date) {
-          x = new Date(date);
-          return (
-            weekday[x.getDay()] +
-            ' ' +
-            month[x.getMonth()] +
-            ' ' +
-            x
-              .getDate()
-              .toString()
-              .padStart(2, '0') +
-            ' ' +
-            x
-              .getHours()
-              .toString()
-              .padStart(2, '0') +
-            ':' +
-            x
-              .getMinutes()
-              .toString()
-              .padStart(2, '0')
-          );
-        }
-
-        function nextFrame() {
-          if (run && radarReady) {
-            try { nextImage(); } catch(e) { console.warn('Weather Radar Card: frame error', e); }
-          }
-          workerTimeout(function() {
-            nextFrame();
-          }, (idx == frameCount) ? restartDelay : timeout, "frame");
-        }
-
-        function skipNext() {
-          if (idx == frameCount-1) {
-            idx += 1;
-          }
-          nextImage();
-        }
-
-        function skipBack() {
-          if (idx == frameCount) {
-            radarImage[frameCount - 1].setOpacity(0);
-            idx -= 1;
-          } else if (idx < frameCount) {
-            radarImage[idx].setOpacity(0);
-          }
-          idx -= 1;
-          if (doRadarUpdate && idx == 1) {
-            updateRadar();
-          }
-          if (idx < 0) {
-            idx = frameCount-1;
-          }
-          document.getElementById("progress-bar").style.width = (idx+1)*barSize+"px";
-          document.getElementById('timestamp').innerHTML = radarTime[idx];
-          radarImage[idx].setOpacity(radarOpacity);
-        }
-
-        function nextImage() {
-          if (idx == frameCount) {
-            radarImage[frameCount - 1].setOpacity(0);
-          } else if (idx < frameCount - 1) {
-            radarImage[idx].setOpacity(0);
-          }
-          idx += 1;
-          if (doRadarUpdate && idx == 1) {
-            updateRadar();
-          }
-          if (idx == frameCount + 1) {
-            idx = 0;
-          }
-          if (idx != frameCount + 1) {
-            document.getElementById("progress-bar").style.width = (idx+1)*barSize+"px";
-          }
-          if (idx < frameCount) {
-            document.getElementById('timestamp').innerHTML = radarTime[idx];
-            radarImage[idx].setOpacity(radarOpacity);
-          }
-        }
-
-        function resizeWindow() {
-          this.document.getElementById("color-bar").width = this.frameElement.offsetWidth;
-          this.document.getElementById("img-color-bar").width = this.frameElement.offsetWidth;
-          this.document.getElementById("mapid").width = this.frameElement.offsetWidth;
-          var calculatedHeight = "${this._calculateHeight()}";
-          if (calculatedHeight.endsWith("px")) {
-            this.document.getElementById("mapid").height = parseInt(calculatedHeight);
-          }
-          this.document.getElementById("div-progress-bar").width = this.frameElement.offsetWidth;
-          this.document.getElementById("bottom-container").width = this.frameElement.offsetWidth;
-          barSize = this.frameElement.offsetWidth/frameCount;
-        }
-        </script>
-            </span>
+              function resizeWindow() {
+                this.document.getElementById("color-bar").width = this.frameElement.offsetWidth;
+                this.document.getElementById("img-color-bar").width = this.frameElement.offsetWidth;
+                this.document.getElementById("mapid").width = this.frameElement.offsetWidth;
+                var calculatedHeight = "${this._calculateHeight()}";
+                if (calculatedHeight.endsWith("px")) { this.document.getElementById("mapid").height = parseInt(calculatedHeight); }
+                this.document.getElementById("div-progress-bar").width = this.frameElement.offsetWidth;
+                this.document.getElementById("bottom-container").width = this.frameElement.offsetWidth;
+                barSize = this.frameElement.offsetWidth/frameCount;
+              }
+            </script>
+          </span>
         </body>
       </html>
     `;
 
     const calculatedHeight = this._calculateHeight();
     let padding = '540px';
-
     if (calculatedHeight.endsWith('px')) {
-      const heightValue = parseInt(calculatedHeight);
-      padding = `${heightValue + 48}px`;
+      padding = `${parseInt(calculatedHeight) + 48}px`;
     } else if (this.isPanel && this.offsetParent) {
       padding = `${this.offsetParent.clientHeight - 2 - (this.editMode === true ? 59 : 0)}px`;
     } else if (this._config && this._config.square_map) {
@@ -1150,9 +720,7 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
     return html`
       <style>
         ${this.styles}
-        ha-card {
-          width: ${calculatedWidth};
-        }
+        ha-card { width: ${calculatedWidth}; }
       </style>
       <ha-card class="type-iframe">
         ${cardTitle}
@@ -1164,98 +732,49 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
   }
 
   private showWarning(warning: string): TemplateResult {
-    return html`
-      <hui-warning>${warning}</hui-warning>
-    `;
+    return html`<hui-warning>${warning}</hui-warning>`;
   }
 
   private showError(error: string): TemplateResult {
     const errorCard = document.createElement('hui-error-card') as LovelaceCard;
-    errorCard.setConfig({
-      type: 'error',
-      error,
-      origConfig: this._config,
-    });
-
-    return html`
-      ${errorCard}
-    `;
+    errorCard.setConfig({ type: 'error', error, origConfig: this._config });
+    return html`${errorCard}`;
   }
 
   private _validateCssSize(value: string | undefined): boolean {
     if (!value) return true;
-    const cssUnitRegex = /^\d+(\.\d+)?(px|%|em|rem|vh|vw)$/;
-    return cssUnitRegex.test(value.trim());
+    return /^\d+(\.\d+)?(px|%|em|rem|vh|vw)$/.test(value.trim());
   }
 
   private _calculateHeight(): string {
-    if (!this._config) {
-      return '492px';
-    }
-
-    if (this._config.height && this._validateCssSize(this._config.height)) {
-      return this._config.height;
-    }
-
+    if (!this._config) return '492px';
+    if (this._config.height && this._validateCssSize(this._config.height)) return this._config.height;
     if (this.isPanel) {
-      return this.offsetParent
-        ? `${this.offsetParent.clientHeight - 48 - 2 - (this.editMode === true ? 59 : 0)}px`
-        : '540px';
+      return this.offsetParent ? `${this.offsetParent.clientHeight - 48 - 2 - (this.editMode === true ? 59 : 0)}px` : '540px';
     }
-
-    if (this._config.square_map !== undefined && this._config.square_map) {
-      return `${this.getBoundingClientRect().width}px`;
-    }
-
+    if (this._config.square_map !== undefined && this._config.square_map) return `${this.getBoundingClientRect().width}px`;
     return '492px';
   }
 
   private _calculateWidth(): string {
-    if (!this._config) {
-      return '100%';
-    }
-
-    if (this._config.width && this._validateCssSize(this._config.width)) {
-      return this._config.width;
-    }
+    if (!this._config) return '100%';
+    if (this._config.width && this._validateCssSize(this._config.width)) return this._config.width;
     return '100%';
   }
 
   get styles(): CSSResult {
     return css`
-      .text-container {
-        font: 12px/1.5 'Helvetica Neue', Arial, Helvetica, sans-serif;
-      }
-      #timestamp {
-        margin: 2px 0px;
-      }
-      #color-bar {
-        margin: 0px 0px;
-      }
-      ha-card {
-        overflow: hidden;
-      }
-      #root {
-        width: 100%;
-        position: relative;
-      }
-      iframe {
-        position: absolute;
-        border: none;
-        width: 100%;
-        height: 100%;
-        top: 0;
-        left: 0;
-      }
-      #card-title {
-        margin: 8px 0px 4px 8px;
-        font-size: 1.5em;
-      }
+      .text-container { font: 12px/1.5 'Helvetica Neue', Arial, Helvetica, sans-serif; }
+      #timestamp { margin: 2px 0px; }
+      #color-bar { margin: 0px 0px; }
+      ha-card { overflow: hidden; }
+      #root { width: 100%; position: relative; }
+      iframe { position: absolute; border: none; width: 100%; height: 100%; top: 0; left: 0; }
+      #card-title { margin: 8px 0px 4px 8px; font-size: 1.5em; }
     `;
   }
 }
 
-// Manual registration as fallback in case decorator doesn't work
 if (!customElements.get('weather-radar-card')) {
   customElements.define('weather-radar-card', WeatherRadarCard);
 }
