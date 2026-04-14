@@ -17,7 +17,6 @@ export class WeatherRadarCardEditor extends LitElement implements LovelaceCardEd
 
   public setConfig(config: WeatherRadarCardConfig): void {
     this._config = config;
-
     this.loadCardHelpers();
   }
 
@@ -25,7 +24,6 @@ export class WeatherRadarCardEditor extends LitElement implements LovelaceCardEd
     if (!this._initialized) {
       this._initialize();
     }
-
     return true;
   }
 
@@ -88,17 +86,13 @@ export class WeatherRadarCardEditor extends LitElement implements LovelaceCardEd
         <div class="side-by-side">
           <ha-selector
             .hass=${this.hass}
-            .selector=${{
-              select: {
-                options: [
-                  { value: '', label: 'Default (Light)' },
-                  { value: 'Light', label: 'Light' },
-                  { value: 'Voyager', label: 'Voyager' },
-                  { value: 'Satellite', label: 'Satellite' },
-                  { value: 'Dark', label: 'Dark' },
-                ],
-              },
-            }}
+            .selector=${{select: {options: [
+              { value: '', label: 'Default (Light)' },
+              { value: 'Light', label: 'Light' },
+              { value: 'Voyager', label: 'Voyager' },
+              { value: 'Satellite', label: 'Satellite' },
+              { value: 'Dark', label: 'Dark' },
+            ]}}}
             .value=${config.map_style || ''}
             .label=${'Map Style (optional)'}
             .configValue=${'map_style'}
@@ -106,23 +100,57 @@ export class WeatherRadarCardEditor extends LitElement implements LovelaceCardEd
           ></ha-selector>
           <ha-selector
             .hass=${this.hass}
-            .selector=${{
-              select: {
-                options: [
-                  { value: '', label: 'Default (5)' },
-                  { value: '4', label: '4' },
-                  { value: '5', label: '5' },
-                  { value: '6', label: '6' },
-                  { value: '7', label: '7' },
-                ],
-              },
-            }}
+            .selector=${{select: {options: [
+              { value: '', label: 'Default (5)' },
+              { value: '4', label: '4' },
+              { value: '5', label: '5' },
+              { value: '6', label: '6' },
+              { value: '7', label: '7' },
+              { value: '8', label: '8' },
+              { value: '9', label: '9' },
+              { value: '10', label: '10' },
+            ]}}}
             .value=${config.zoom_level?.toString() || ''}
             .label=${'Zoom Level (optional)'}
             .configValue=${'zoom_level'}
             @value-changed=${this._handleSelectorNumberChanged}
           ></ha-selector>
         </div>
+
+        <div class="side-by-side">
+          <ha-selector
+            .hass=${this.hass}
+            .selector=${{select: {options: [
+              { value: '', label: 'Default (7)' },
+              { value: '7', label: '7' },
+              { value: '8', label: '8' },
+              { value: '9', label: '9' },
+              { value: '10', label: '10' },
+              { value: '11', label: '11' },
+              { value: '12', label: '12' },
+            ]}}}
+            .value=${config.max_zoom?.toString() || ''}
+            .label=${'Max Zoom Level (optional)'}
+            .configValue=${'max_zoom'}
+            @value-changed=${this._handleSelectorNumberChanged}
+          ></ha-selector>
+          <ha-selector
+            .hass=${this.hass}
+            .selector=${{select: {options: [
+              { value: '', label: 'Default (3)' },
+              { value: '1', label: '1' },
+              { value: '2', label: '2' },
+              { value: '3', label: '3' },
+              { value: '4', label: '4' },
+              { value: '5', label: '5' },
+            ]}}}
+            .value=${config.min_zoom?.toString() || ''}
+            .label=${'Min Zoom Level (optional)'}
+            .configValue=${'min_zoom'}
+            @value-changed=${this._handleSelectorNumberChanged}
+          ></ha-selector>
+        </div>
+
         <ha-textfield
             label="Map Centre Latitude (optional)"
             .value=${this._formatCoordinateValue(config.center_latitude)}
@@ -262,20 +290,16 @@ export class WeatherRadarCardEditor extends LitElement implements LovelaceCardEd
                 <div class="side-by-side">
                   <ha-selector
                     .hass=${this.hass}
-                    .selector=${{
-                      select: {
-                        options: [
-                          { value: 'default', label: 'Default (Home)' },
-                          { value: 'entity_picture', label: 'Entity Picture' },
-                          { value: 'mdi:account', label: 'MDI: Account' },
-                          { value: 'mdi:account-circle', label: 'MDI: Account Circle' },
-                          { value: 'mdi:map-marker', label: 'MDI: Map Marker' },
-                          { value: 'mdi:home', label: 'MDI: Home' },
-                          { value: 'mdi:car', label: 'MDI: Car' },
-                          { value: 'mdi:cellphone', label: 'MDI: Cellphone' },
-                        ],
-                      },
-                    }}
+                    .selector=${{select: {options: [
+                      { value: 'default', label: 'Default (Home)' },
+                      { value: 'entity_picture', label: 'Entity Picture' },
+                      { value: 'mdi:account', label: 'MDI: Account' },
+                      { value: 'mdi:account-circle', label: 'MDI: Account Circle' },
+                      { value: 'mdi:map-marker', label: 'MDI: Map Marker' },
+                      { value: 'mdi:home', label: 'MDI: Home' },
+                      { value: 'mdi:car', label: 'MDI: Car' },
+                      { value: 'mdi:cellphone', label: 'MDI: Cellphone' },
+                    ]}}}
                     .value=${config.marker_icon || 'default'}
                     .label=${'Icon Type'}
                     .configValue=${'marker_icon'}
@@ -297,21 +321,17 @@ export class WeatherRadarCardEditor extends LitElement implements LovelaceCardEd
                 <div class="side-by-side">
                   <ha-selector
                     .hass=${this.hass}
-                    .selector=${{
-                      select: {
-                        options: [
-                          { value: '', label: 'None' },
-                          { value: 'default', label: 'Default (Home)' },
-                          { value: 'entity_picture', label: 'Entity Picture' },
-                          { value: 'mdi:account', label: 'MDI: Account' },
-                          { value: 'mdi:account-circle', label: 'MDI: Account Circle' },
-                          { value: 'mdi:map-marker', label: 'MDI: Map Marker' },
-                          { value: 'mdi:home', label: 'MDI: Home' },
-                          { value: 'mdi:car', label: 'MDI: Car' },
-                          { value: 'mdi:cellphone', label: 'MDI: Cellphone' },
-                        ],
-                      },
-                    }}
+                    .selector=${{select: {options: [
+                      { value: '', label: 'None' },
+                      { value: 'default', label: 'Default (Home)' },
+                      { value: 'entity_picture', label: 'Entity Picture' },
+                      { value: 'mdi:account', label: 'MDI: Account' },
+                      { value: 'mdi:account-circle', label: 'MDI: Account Circle' },
+                      { value: 'mdi:map-marker', label: 'MDI: Map Marker' },
+                      { value: 'mdi:home', label: 'MDI: Home' },
+                      { value: 'mdi:car', label: 'MDI: Car' },
+                      { value: 'mdi:cellphone', label: 'MDI: Cellphone' },
+                    ]}}}
                     .value=${config.mobile_marker_icon || ''}
                     .label=${'Mobile Icon Type (optional)'}
                     .configValue=${'mobile_marker_icon'}
@@ -376,19 +396,14 @@ export class WeatherRadarCardEditor extends LitElement implements LovelaceCardEd
   private _handleSelectorChanged(ev: CustomEvent): void {
     const configValue = (ev.target as any).configValue;
     const value = ev.detail.value;
-
     if (!this._config || !configValue) return;
     if (this._config[configValue] === value) return;
-
     if (value === '' || value === null) {
       const newConfig = { ...this._config };
       delete newConfig[configValue];
       this._config = newConfig;
     } else {
-      this._config = {
-        ...this._config,
-        [configValue]: value,
-      };
+      this._config = { ...this._config, [configValue]: value };
     }
     fireEvent(this, 'config-changed', { config: this._config });
   }
@@ -396,146 +411,82 @@ export class WeatherRadarCardEditor extends LitElement implements LovelaceCardEd
   private _handleSelectorNumberChanged(ev: CustomEvent): void {
     const configValue = (ev.target as any).configValue;
     const value = ev.detail.value;
-
     if (!this._config || !configValue) return;
-
     const numValue = value === '' || value === null ? null : Number(value);
     if (this._config[configValue] === numValue) return;
-
     if (numValue === null) {
       const newConfig = { ...this._config };
       delete newConfig[configValue];
       this._config = newConfig;
     } else {
-      this._config = {
-        ...this._config,
-        [configValue]: numValue,
-      };
+      this._config = { ...this._config, [configValue]: numValue };
     }
     fireEvent(this, 'config-changed', { config: this._config });
   }
 
   private _valueChangedSwitch(ev): void {
     const target = ev.target;
-
-    if (!this._config || !this.hass || !target) {
-      return;
-    }
-    this._config = {
-      ...this._config,
-      [target.configValue]: target.checked,
-    };
+    if (!this._config || !this.hass || !target) return;
+    this._config = { ...this._config, [target.configValue]: target.checked };
     fireEvent(this, 'config-changed', { config: this._config });
   }
 
   private _valueChangedNumber(ev): void {
-    if (!this._config || !this.hass) {
-      return;
-    }
+    if (!this._config || !this.hass) return;
     const target = ev.target;
     const configValue = target.configValue;
     const value = target.value;
-    if (this._config[configValue] === Number(value)) {
-      return;
-    }
-
+    if (this._config[configValue] === Number(value)) return;
     if (configValue) {
       if (value === '' || value === null) {
         delete this._config[configValue];
       } else {
-        this._config = {
-          ...this._config,
-          [configValue]: Number(value),
-        };
+        this._config = { ...this._config, [configValue]: Number(value) };
       }
     }
     fireEvent(this, 'config-changed', { config: this._config });
   }
 
   private _valueChangedString(ev): void {
-    if (!this._config || !this.hass) {
-      return;
-    }
+    if (!this._config || !this.hass) return;
     const target = ev.target;
     const configValue = target.configValue;
     const value = target.value;
-    if (this._config[configValue] === value) {
-      return;
-    }
-
+    if (this._config[configValue] === value) return;
     if (configValue) {
       if (value === '') {
         delete this._config[configValue];
       } else {
-        this._config = {
-          ...this._config,
-          [configValue]: value,
-        };
+        this._config = { ...this._config, [configValue]: value };
       }
     }
     fireEvent(this, 'config-changed', { config: this._config });
   }
 
-  /**
-   * Formats coordinate config for display in text field
-   * Handles numbers, strings, and entity objects
-   */
   private _formatCoordinateValue(value: CoordinateConfig | undefined): string {
-    if (value === undefined || value === null) {
-      return '';
-    }
-    if (typeof value === 'number') {
-      return value.toString();
-    }
-    if (typeof value === 'string') {
-      return value;
-    }
-    if (typeof value === 'object' && 'entity' in value) {
-      // For object format, just show the entity ID
-      return value.entity;
-    }
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'number') return value.toString();
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object' && 'entity' in value) return value.entity;
     return '';
   }
 
-  /**
-   * Handles coordinate field changes (accepts both numbers and entity IDs)
-   */
   private _valueChangedCoordinate(ev): void {
-    if (!this._config || !this.hass) {
-      return;
-    }
+    if (!this._config || !this.hass) return;
     const target = ev.target;
     if (target.configValue) {
       const value = target.value?.trim();
-
       if (value === '' || value === null) {
-        // Remove config value
         delete this._config[target.configValue];
       } else {
-        // Check if it's a number or entity ID
         const numValue = parseFloat(value);
-
         if (!isNaN(numValue)) {
-          // Store as number (backwards compatible)
-          this._config = {
-            ...this._config,
-            [target.configValue]: numValue,
-          };
+          this._config = { ...this._config, [target.configValue]: numValue };
         } else if (value.includes('.')) {
-          // Looks like an entity ID (has a dot)
-          this._config = {
-            ...this._config,
-            [target.configValue]: value,
-          };
+          this._config = { ...this._config, [target.configValue]: value };
         } else {
-          // Invalid - show console warning but keep value
-          console.warn(
-            `Weather Radar Card Editor: '${value}' should be a number or entity ID (e.g., device_tracker.phone)`,
-          );
-          this._config = {
-            ...this._config,
-            [target.configValue]: value,
-          };
+          console.warn(`Weather Radar Card Editor: '${value}' should be a number or entity ID (e.g., device_tracker.phone)`);
+          this._config = { ...this._config, [target.configValue]: value };
         }
       }
     }

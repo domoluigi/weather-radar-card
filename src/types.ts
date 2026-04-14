@@ -25,6 +25,7 @@ export interface WeatherRadarCardConfig extends LovelaceCardConfig {
   extra_labels: undefined;
   frame_count: undefined;
   frame_delay: undefined;
+  restart_delay?: number;
   // Base coordinates (used on all devices)
   marker_longitude?: CoordinateConfig;
   marker_latitude?: CoordinateConfig;
@@ -41,8 +42,11 @@ export interface WeatherRadarCardConfig extends LovelaceCardConfig {
   mobile_marker_icon?: string; // Mobile override for marker icon type
   mobile_marker_icon_entity?: string; // Mobile override for icon entity
   zoom_level: undefined;
+  max_zoom?: number; // Maximum zoom level (default: 7)
+  min_zoom?: number; // Minimum zoom level (default: 3)
   type: string;
   name?: string;
+  card_title?: string;
   map_style?: string;
   show_warning?: boolean;
   show_error?: boolean;
