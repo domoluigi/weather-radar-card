@@ -611,8 +611,8 @@ export class WeatherRadarCard extends LitElement implements LovelaceCard {
             </div>
             <script>
               const tileSize = 256;
-              const maxZoom = 7;
-              const minZoom = 3;
+              const maxZoom = (this._config.max_zoom != null && this._config.max_zoom >= 1 && this._config.max_zoom <= 20) ? this._config.max_zoom : 14;
+              const minZoom = (this._config.min_zoom != null && this._config.min_zoom >= 1 && this._config.min_zoom <= 20) ? this._config.min_zoom : 3;
               var radarOpacity = 1.0;
               var zoomLevel = ${JSON.stringify(this._config.zoom_level !== undefined ? this._config.zoom_level : 7)};
               ${
