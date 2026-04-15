@@ -24,12 +24,6 @@ A Home Assistant rain radar card using the tiled images from RainViewer
 [![License][license-shield]](LICENSE)
 ![Maintenance](https://img.shields.io/maintenance/yes/2025?style=for-the-badge)
 
-## Support
-
-Help support development with a donation!
-
-[![coffee](https://www.buymeacoffee.com/assets/img/custom_images/black_img.png)](https://www.buymeacoffee.com/theOzzieRat)
-
 ## Description
 
 This card uses map tiles of radar data provided by RainViewer. This allows for one continuous map that can be zoomed and panned seamlessly. This card allows this to be displayed within Home Assistant. The card allows you create radar loops of up to at least 24 hours.
@@ -47,22 +41,24 @@ All of the options below can be selected using the GUI config editor, there is n
 | data_source      | string  | **Optional** | Specifies whcih set of radar tiles to use                    | `'RainViewer-Original'` see section below for valid values |
 | map_style        | string  | **Optional** | Specifies the style for the map                              | `'light'` see section below for valid values               |
 | zoom_level       | number  | **Optional** | The initial zoom level, can be from 4 to 10                  | `7`                                                        |
+| max_zoom         | number  | **Optional** | Maximum zoom level allowed (1-20)                            | `7`                                                        |
+| min_zoom         | number  | **Optional** | Minimum zoom level allowed (1-20)                            | `3`                                                        |
 | center_latitude  | number / string / object  | **Optional** | The initial center latitude of the map (see Location Coordinates below) | the location of your HA instance                           |
 | center_longitude | number / string / object  | **Optional** | The initial center longitude of the map (see Location Coordinates below) | the location of your HA instance                           |
 | marker_latitude  | number / string / object  | **Optional** | The latitude for the home icon if enabled (see Location Coordinates below) | the same as center_latitude                                |
 | marker_longitude | number / string / object  | **Optional** | The longitude for the home icon if enabled (see Location Coordinates below) | the same as center_longitude                               |
-| mobile_center_latitude  | number / string / object  | **Optional** | **NEW** Mobile override for center latitude (see Mobile Device Overrides below) | not set (uses center_latitude)                             |
-| mobile_center_longitude | number / string / object  | **Optional** | **NEW** Mobile override for center longitude (see Mobile Device Overrides below) | not set (uses center_longitude)                            |
-| mobile_marker_latitude  | number / string / object  | **Optional** | **NEW** Mobile override for marker latitude (see Mobile Device Overrides below) | not set (uses marker_latitude)                             |
-| mobile_marker_longitude | number / string / object  | **Optional** | **NEW** Mobile override for marker longitude (see Mobile Device Overrides below) | not set (uses marker_longitude)                            |
+| mobile_center_latitude  | number / string / object  | **Optional** | Mobile override for center latitude (see Mobile Device Overrides below) | not set (uses center_latitude)                             |
+| mobile_center_longitude | number / string / object  | **Optional** | Mobile override for center longitude (see Mobile Device Overrides below) | not set (uses center_longitude)                            |
+| mobile_marker_latitude  | number / string / object  | **Optional** | Mobile override for marker latitude (see Mobile Device Overrides below) | not set (uses marker_latitude)                             |
+| mobile_marker_longitude | number / string / object  | **Optional** | Mobile override for marker longitude (see Mobile Device Overrides below) | not set (uses marker_longitude)                            |
 | frame_count      | number  | **Optional** | The number of frames to use in the loop                      | `10`                                                       |
 | frame_delay      | number  | **Optional** | The number of milliseconds to show each frame                | `500`                                                      |
 | restart_delay    | number  | **Optional** | The additional number of milliseconds to show the last frame | `1000`                                                     |
 | static_map       | boolean | **Optional** | Set to true to disable all panning and zooming               | `false`                                                    |
 | show_zoom        | boolean | **Optional** | Show the zoom controls in the top left corner                | `false`                                                    |
 | square_map       | boolean | **Optional** | Will keep the map square (not in panel mode)                 | `false`                                                    |
-| height           | string  | **Optional** | **NEW** Custom card height using CSS units (e.g., '400px', '50vh'). Overrides panel mode and square_map calculations. | auto                                                       |
-| width            | string  | **Optional** | **NEW** Custom card width using CSS units (e.g., '500px', '80%')     | `'100%'`                                                   |
+| height           | string  | **Optional** | Custom card height using CSS units (e.g., '400px', '50vh'). Overrides panel mode and square_map calculations. | auto                                                       |
+| width            | string  | **Optional** | Custom card width using CSS units (e.g., '500px', '80%')     | `'100%'`                                                   |
 | show_marker      | boolean | **Optional** | Show the home icon at the marker position                    | `false`                                                    |
 | show_playback    | boolean | **Optional** | Show the playback controls in the bottom right toolbar       | `false`                                                    |
 | show_recenter    | boolean | **Optional** | Show the re-center control in the bottom right toolbar       | `false`                                                    |
